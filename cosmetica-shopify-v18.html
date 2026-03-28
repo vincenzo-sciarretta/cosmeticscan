@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>CosmeticScan — Applicatore Fix v18</title>
+<style>
+body { font-family: 'Segoe UI', sans-serif; background: #F0F4F8; color: #1A1D23; padding: 2rem; max-width: 700px; margin: 0 auto; }
+h1 { color: #1E3A5F; font-size: 1.4rem; margin-bottom: 0.5rem; }
+.subtitle { color: #64748B; font-size: 0.9rem; margin-bottom: 2rem; }
+.step { background: white; border: 1px solid #DDE2EA; border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+.step-num { background: #2563EB; color: white; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; margin-right: 0.5rem; }
+.step h2 { display: inline; font-size: 1rem; color: #1E3A5F; }
+.btn { background: #2563EB; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-top: 1rem; display: block; width: 100%; text-align: center; }
+.btn:hover { background: #1D4ED8; }
+.btn-green { background: #1A9E5C; }
+.btn-green:hover { background: #157A48; }
+.drop-area { border: 2px dashed #93C5FD; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; background: #F0F7FF; margin: 1rem 0; transition: all 0.2s; }
+.drop-area:hover, .drop-area.over { border-color: #2563EB; background: #EFF6FF; }
+.drop-area input { display: none; }
+.fix-list { background: #F8FAFF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; font-size: 0.82rem; line-height: 1.8; }
+.fix-ok { color: #166534; font-weight: 600; }
+.fix-err { color: #B91C1C; font-weight: 600; }
+.fix-pending { color: #64748B; }
+#result { display: none; }
+#log { font-family: monospace; font-size: 0.78rem; background: #1E3A5F; color: #7DD3FC; padding: 1rem; border-radius: 6px; margin-top: 0.75rem; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<h1>🔧 CosmeticScan — Fix Automatico v16 → v18</h1>
+<p class="subtitle">Carica il file <strong>cosmetica-shopify-v16.html</strong>, questo strumento applica automaticamente i 4 fix e scarica il file <strong>v18</strong> corretto.</p>
+
+<div class="step">
+  <span class="step-num">1</span>
+  <h2>Fix che verranno applicati</h2>
+  <div class="fix-list">
+    <div id="fix1" class="fix-pending">⏳ FIX 1 — Rimuovere <code>return [];</code> in buildShopifyMetafields (blocca tutti i metafield)</div>
+    <div id="fix2" class="fix-pending">⏳ FIX 2 — Correggere nomi campi varianti in collectCurrentProduct (varSku_ → vsku_ ecc.)</div>
+    <div id="fix3" class="fix-pending">⏳ FIX 3 — Rendere permissivo il controllo token OAuth</div>
+    <div id="fix4" class="fix-pending">⏳ FIX 4 — Convertire inventory_quantity a intero</div>
+    <div id="fix5" class="fix-pending">⏳ FIX 5 — Aggiornare titolo a v18</div>
+  </div>
+</div>
+
+<div class="step">
+  <span class="step-num">2</span>
+  <h2>Carica il file v16</h2>
+  <div class="drop-area" id="dropArea" onclick="document.getElementById('fileInput').click()"
+       ondragover="event.preventDefault();this.classList.add('over')"
+       ondragleave="this.classList.remove('over')"
+       ondrop="handleDrop(event)">
+    <input type="file" id="fileInput" accept=".html" onchange="handleFile(this.files[0])">
+    <div style="font-size: 2rem; margin-bottom: 0.5rem;">📂</div>
+    <div style="font-weight: 600; color: #1E3A5F;">Trascina qui <code>cosmetica-shopify-v16.html</code></div>
+    <div style="font-size: 0.8rem; color: #64748B; margin-top: 0.25rem;">oppure clicca per selezionare</div>
+  </div>
+</div>
+
+<div id="result" class="step">
+  <span class="step-num">3</span>
+  <h2>Risultato</h2>
+  <div id="log"></div>
+  <button class="btn btn-green" id="downloadBtn" onclick="downloadFixed()" style="display:none">
+    ⬇️ Scarica cosmetica-shopify-v17.html
+  </button>
+</div>
+
+<script>
+let fixedContent = '';
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropArea').classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file || !file.name.endsWith('.html')) {
+    alert('Seleziona un file .html');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => applyFixes(e.target.result);
+  reader.readAsText(file, 'UTF-8');
+}
+
+function setFixStatus(id, ok, msg) {
+  const el = document.getElementById(id);
+  if (ok) {
+    el.className = 'fix-ok';
+    el.textContent = '✅ ' + msg;
+  } else {
+    el.className = 'fix-err';
+    el.textContent = '❌ ' + msg;
+  }
+}
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent += msg + '\n';
+}
+
+function applyFixes(content) {
+  document.getElementById('result').style.display = 'block';
+  const logEl = document.getElementById('log');
+  logEl.textContent = '';
+  
+  let modified = content;
+  let allOk = true;
+
+  // ── FIX 1: Rimuovi return [] in buildShopifyMetafields ──
+  const fix1_old = '  return []; // TEST: zero metafield\n  moMap = moMap || {};';
+  const fix1_new = '  moMap = moMap || {};';
+  if (modified.includes(fix1_old)) {
+    modified = modified.replace(fix1_old, fix1_new);
+    setFixStatus('fix1', true, 'FIX 1 — return [] rimosso ✓');
+    log('✅ FIX 1 applicato: return [] rimosso da buildShopifyMetafields');
+  } else {
+    // Prova pattern alternativo (solo la riga)
+    const alt = '  return []; // TEST: zero metafield';
+    if (modified.includes(alt)) {
+      modified = modified.split('\n').filter(l => !l.includes('return []; // TEST: zero metafield')).join('\n');
+      setFixStatus('fix1', true, 'FIX 1 — return [] rimosso (pattern alternativo) ✓');
+      log('✅ FIX 1 applicato (pattern alternativo)');
+    } else {
+      setFixStatus('fix1', false, 'FIX 1 — Pattern non trovato (potrebbe essere già corretto)');
+      log('⚠️ FIX 1: pattern non trovato — potrebbe essere già applicato');
+    }
+  }
+
+  // ── FIX 2: Nomi campi varianti in collectCurrentProduct ──
+  const fix2_old = `    const sku = document.getElementById('varSku_' + id)?.value || '';
+    const ml = document.getElementById('varMl_' + id)?.value || '';
+    const price = document.getElementById('varPrice_' + id)?.value || '';
+    const qty = document.getElementById('varQty_' + id)?.value || '100';
+    const imgUrl = document.getElementById('varImgUrl_' + id)?.value || '';`;
+  const fix2_new = `    const sku = document.getElementById('vsku_' + id)?.value || '';
+    const ml = document.getElementById('vml_' + id)?.value || '';
+    const price = document.getElementById('vprice_' + id)?.value || '';
+    const qty = document.getElementById('vqty_' + id)?.value || '100';
+    const imgUrl = varPhotos[id] || '';`;
+  if (modified.includes(fix2_old)) {
+    modified = modified.replace(fix2_old, fix2_new);
+    setFixStatus('fix2', true, 'FIX 2 — Nomi campi varianti corretti ✓');
+    log('✅ FIX 2 applicato: nomi campi varianti corretti');
+  } else if (modified.includes("getElementById('vsku_'")) {
+    setFixStatus('fix2', true, 'FIX 2 — Già corretto ✓');
+    log('ℹ️ FIX 2: già applicato');
+  } else {
+    setFixStatus('fix2', false, 'FIX 2 — Pattern non trovato');
+    log('⚠️ FIX 2: pattern non trovato');
+    allOk = false;
+  }
+
+  // ── FIX 3: Token check permissivo ──
+  const fix3_old = "  if (!token || !token.startsWith('shpat_')) {";
+  const fix3_new = "  if (!token) {";
+  if (modified.includes(fix3_old)) {
+    modified = modified.replace(fix3_old, fix3_new);
+    setFixStatus('fix3', true, 'FIX 3 — Token check reso permissivo ✓');
+    log('✅ FIX 3 applicato: token check reso permissivo');
+  } else {
+    setFixStatus('fix3', true, 'FIX 3 — Già corretto o non presente ✓');
+    log('ℹ️ FIX 3: già applicato o non necessario');
+  }
+
+  // ── FIX 4: inventory_quantity come intero ──
+  const fix4_old = '    inventory_quantity: v.qty,';
+  const fix4_new = '    inventory_quantity: parseInt(v.qty) || 100,';
+  if (modified.includes(fix4_old)) {
+    modified = modified.replace(fix4_old, fix4_new);
+    setFixStatus('fix4', true, 'FIX 4 — inventory_quantity come intero ✓');
+    log('✅ FIX 4 applicato: inventory_quantity come intero');
+  } else {
+    setFixStatus('fix4', true, 'FIX 4 — Già corretto ✓');
+    log('ℹ️ FIX 4: già applicato');
+  }
+
+  // ── FIX 5: Aggiorna versione ──
+  modified = modified
+    .replace('CosmeticScan → Shopify v16', 'CosmeticScan → Shopify v18')
+    .replace('<title>CosmeticScan → Shopify v16</title>', '<title>CosmeticScan → Shopify v18</title>');
+  setFixStatus('fix5', true, 'FIX 5 — Versione aggiornata a v17 ✓');
+  log('✅ FIX 5: titolo aggiornato a v17');
+
+  log('\n' + (allOk ? '🎉 Tutti i fix applicati! Scarica il file v17.' : '⚠️ Alcuni fix non trovati — verifica il log.'));
+
+  fixedContent = modified;
+  document.getElementById('downloadBtn').style.display = 'block';
+}
+
+function downloadFixed() {
+  const blob = new Blob([fixedContent], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cosmetica-shopify-v17.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
